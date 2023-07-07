@@ -125,6 +125,28 @@ if (!class_exists('API_Bearer_Auth')) {
       delete_option('api_bearer_auth_activated');
       $wpdb->query('DROP TABLE ' . $wpdb->base_prefix . 'user_tokens');
     }
+
+    /**
+     * Make sure to add the lines below to .htaccess
+     * otherwise Apache may strip out the auth header.
+     * RewriteCond %{HTTP:Authorization} ^(.*)
+     * RewriteRule ^(.*) - [E=HTTP_AUTHORIZATION:%1]
+     */
+    public static function get_auth_header() {
+      // On some servers the headers are changed to upper or lowercase.
+      $headers = array_change_key_case(function_exists('apache_request_headers')
+        ? apache_request_headers() : $_SERVER, CASE_LOWER);
+      $possibleAuthHeaderKeys = ['authorization', 'http_authorization', 'redirect_http_authorization'];
+      $authHeader = null;
+      foreach ($possibleAuthHeaderKeys as $key) {
+        if (!empty($headers[$key])) {
+          $authHeader = $headers[$key];
+          break;
+        }
+      }
+
+      return $authHeader;
+    }
   
     /**
      * By default, this filter determines the current user from the cookie.
@@ -138,23 +160,7 @@ if (!class_exists('API_Bearer_Auth')) {
         return $user_id;
       }
  
-      /**
-       * Make sure to add the lines below to .htaccess
-       * otherwise Apache may strip out the auth header.
-       * RewriteCond %{HTTP:Authorization} ^(.*)
-       * RewriteRule ^(.*) - [E=HTTP_AUTHORIZATION:%1]
-       */
-      // On some servers the headers are changed to upper or lowercase.
-      $headers = array_change_key_case(function_exists('apache_request_headers')
-        ? apache_request_headers() : $_SERVER, CASE_LOWER);
-      $possibleAuthHeaderKeys = ['authorization', 'http_authorization', 'redirect_http_authorization'];
-      $authHeader = null;
-      foreach ($possibleAuthHeaderKeys as $key) {
-        if (!empty($headers[$key])) {
-          $authHeader = $headers[$key];
-          break;
-        }
-      }
+      $authHeader = API_Bearer_Auth::get_auth_header();
       
       if (!empty($authHeader)) {
         // 7 = strlen('Bearer ');
